@@ -1,0 +1,27 @@
+# Ignore .idea folder
+.idea/
+
+# Ignore .vscode folder
+.vscode/
+
+# Ignore Python cache files
+*.pyc
+__pycache__/
+
+# Ignore useless files (for example, temporary files)
+*.tmp
+
+# Ignore database files (replace with the extension of your database files)
+*.db
+
+# Ignore compiled files
+*.com
+
+# Ignore binary files
+*.bin
+
+# Ignore log files
+*.log
+
+#ignore test_main.http
+test_main.http
