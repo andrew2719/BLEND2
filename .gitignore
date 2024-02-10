@@ -8,11 +8,16 @@
 *.pyc
 __pycache__/
 
+#all the cache files
+*.cache
+
+
 # Ignore useless files (for example, temporary files)
 *.tmp
 
 # Ignore database files (replace with the extension of your database files)
 *.db
+*.sqlite3
 
 # Ignore compiled files
 *.com
@@ -25,3 +30,6 @@ __pycache__/
 
 #ignore test_main.http
 test_main.http
+
+downloads/
+*.json
