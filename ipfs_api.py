@@ -21,7 +21,7 @@ class IPFS:
 
 
     async def pin_folder(self, folder_hash):
-        async for pinned in self.client.pin.add(folder_hash):
+        async for pinned in self.client.pin.add(folder_hash,recursive=True):
             print(pinned)
 
     async def unpin_folder(self, folder_hash):

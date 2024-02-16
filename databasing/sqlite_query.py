@@ -1,6 +1,8 @@
 import asyncio
 import aiosqlite
 import os
+from typing import List, Dict, Union
+from datetime import datetime
 
 class setup_db:
     def __init__(self):
@@ -48,3 +50,20 @@ class query_db(setup_db):
             SELECT * FROM ENTRY_CHECK 
             WHERE CID = ?''', (cid,)) as cursor:
             return await cursor.fetchone()
+
+    async def handle_old_entries(self):
+#         get all the entries that are older than 1 minute
+        async with self.db.execute('''
+            SELECT CID FROM ENTRY_CHECK 
+            WHERE timestamp < datetime('now', '-1 minute')
+        ''') as cursor:
+            old_entries = await cursor.fetchall()
+            return old_entries
+
+    async def remove_old_entries(self, old_entries: List[str]):
+        for entry in old_entries:
+            async with self.db.execute('''
+                DELETE FROM ENTRY_CHECK 
+                WHERE CID = ?
+            ''', (entry[0],)) as cursor:
+                await self.db.commit()

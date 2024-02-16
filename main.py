@@ -1,7 +1,10 @@
 from fastapi import FastAPI, Depends
 from databasing.sqlite_query import query_db
 from ipfs_api import IPFS
-from f_apis import router
+from f_apis import APIS
+from logger import fast_api_logger as flog
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+import requests
 
 # Database Manager Class
 class DatabaseManager:
@@ -33,35 +36,67 @@ class IPFSManager:
     async def get_ipfs(self):
         return self.ipfs
 
+
+class PeerManager:
+    def __init__(self, db_manager: DatabaseManager):
+        self.peers = [
+            "10.10.11.126",
+            "10.10.11.125"
+        ]
+        self.scheduler = AsyncIOScheduler()
+        self.db = db_manager
+
+    async def startup(self):
+        self.scheduler.add_job(self.check_db, "interval", minutes = 2)
+        self.scheduler.start()
+
+    async def shutdown(self):
+        self.scheduler.shutdown()
+
+    async def check_db(self):
+        flog.info("checking db")
+    #     db = await self.db.get_db()
+    #     old_entries = await db.handle_old_entries()
+    #     cids = []
+    #     for i in old_entries:
+    #         for entry in i:
+    #             cids.append(entry)
+    #
+    #     try:
+    # #         url : http://<ip>:8000/{cid}
+    #         for peer in self.peers:
+    #             for cid in cids:
+    #                 await self.inform(peer, cid)
+    #     except Exception as e:
+    #         flog.error(e)
+    #
+    #     finally:
+    #         cids = []
+
+
+    async def inform(self, peer, cid):
+        url = f"http://{peer}:8000/{cid}"
+        try:
+            response = requests.get(url)
+            if response.status_code == 200:
+                flog.info(f"Peer {peer} has been informed about CID: {cid}")
+        except Exception as e:
+            flog.error(e)
+
+
+
 # Application Routes Manager Class
 class AppRoutesManager:
     def __init__(self, app: FastAPI, db_manager: DatabaseManager, ipfs_manager: IPFSManager):
         self.app = app
-        self.app.include_router(router)
+        self.app.include_router(APIS(db_manager,ipfs_manager).return_router())
         self.db_manager = db_manager
         self.ipfs_manager = ipfs_manager
         self.setup_routes()
 
     def setup_routes(self):
-        @self.app.post("/upload/{CID}")
-        async def get_folder_from_ipfs(CID: str, ipfs: IPFS = Depends(self.ipfs_manager.get_ipfs), db: query_db = Depends(self.db_manager.get_db)):
-            response = await ipfs.get_folder(CID)
-            try:
-                if response:
-                    await ipfs.pin_folder(CID)
-                    return await create_item(CID, db)
-                else:
-                    return {"error": "Folder not found"}
-            except Exception as e:
-                return {"error": str(e)}
+        pass
 
-        @self.app.post("/testing-upload/{CID}")
-        async def testing_upload(CID: str):
-            return {"CID": CID}
-
-        async def create_item(CID: str, db: query_db):
-            await db.add_entry(CID)
-            return {"CID": CID}
 
 # Main Application Class
 class MyApp:
@@ -69,14 +104,19 @@ class MyApp:
         self.app = FastAPI()
         self.db_manager = DatabaseManager()
         self.ipfs_manager = IPFSManager()
+        self.scheduler = AsyncIOScheduler()
+        self.peer_manager = PeerManager(self.db_manager)
         self.routes_manager = AppRoutesManager(self.app, self.db_manager, self.ipfs_manager)
-        self.setup_event_handlers()
 
-    def setup_event_handlers(self):
-        self.app.add_event_handler("startup", self.db_manager.startup)
-        self.app.add_event_handler("shutdown", self.db_manager.shutdown)
-        self.app.add_event_handler("startup", self.ipfs_manager.startup)
-        self.app.add_event_handler("shutdown", self.ipfs_manager.shutdown)
+        self.setup_all_event_handlers()
+
+    def setup_all_event_handlers(self):
+        for attr_name in dir(self):
+            attr = getattr(self, attr_name)
+            if hasattr(attr, 'startup') and callable(getattr(attr, 'startup')):
+                self.app.add_event_handler("startup", getattr(attr, 'startup'))
+            if hasattr(attr, 'shutdown') and callable(getattr(attr, 'shutdown')):
+                self.app.add_event_handler("shutdown", getattr(attr, 'shutdown'))
 
     def run(self):
         import uvicorn
